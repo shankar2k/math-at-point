@@ -1,0 +1,23 @@
+* math-at-point
+** Summary
+
+This package provides the command ~math-at-point~ for evaluating an arithmetic
+expression at point using ~calc-eval~. Similar to ~quick-calc~, the result is
+displayed in the minibuffer as well as copied into the kill ring.
+
+** Installation
+
+This package can be cloned from GitHub via the following command:
+
+#+begin_src bash
+git clone https://github.com/shankar2k/math-at-point.git
+#+end_src
+
+To start using it, place it somewhere in your Emacs load-path and add the line
+
+#+begin_src emacs-lisp
+(require 'math-at-point)
+#+end_src
+
+in your ~.emacs.d/init.el~ file. Then run <kbd>M-x math-at-point</kbd> to run
+it. It is useful to create a global keybinding for ~math-at-point~ function. I recommend <kbd>C-z =</kbd>
