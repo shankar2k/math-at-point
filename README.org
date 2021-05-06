@@ -54,7 +54,7 @@ and copied into the kill ring (so that it can be pasted with ~yank~). If the
 point is not within a math expression, then instead run ~quick-calc~.
 
 If the command invoked with the optional prefix argument (~C-u math-at-point~),
-then insert the evaluation result after the expression, prefixed by ~"="~. If
+then insert the evaluation result after the expression, prefixed by "=". If
 there was already a previous result, then replace it.
 
 There is also the command ~math-at-point-simple~ that can evaluate a /simple/ math
