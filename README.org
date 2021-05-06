@@ -64,6 +64,27 @@ expression alone). Note that every simple math expression is a math
 expression, and thus the functionality of ~math-at-point~ is a superset of
 ~math-at-point-simple~
 
+** Example
+
+Suppose that you have the following text in your buffer:
+
+#+begin_src
+The total force is 6.23+(3.789/(5-4)) + 6.4*(2 - (5+[3]) *736.83 ) /2000 newtons.
+#+end_src 
+
+Here, ~[3]~ denotes that the point is on the ~3~ inside the fourth set of balanced parens. 
+If ~M-x math-at-point~ is invoked, then the following message will appear in the minibuffer:
+
+#+begin_src
+Result 6.23+(3.789/(5-4)) + 6.4*(2 - (5+3) *736.83 ) /2000 => -8.837448
+#+end_src 
+
+If ~C-u M-x math-at-point~ is invoked, then the text is changed to:
+
+#+begin_src
+The total force is 6.23+(3.789/(5-4)) + 6.4*(2 - (5+[3]) *736.83 ) /2000=-8.837448 newtons.
+#+end_src 
+
 ** Requirements
 
 ~math-at-point~ requires Emacs 27 or later because I use ~rx-define~ to define the
