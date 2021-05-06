@@ -3,8 +3,8 @@
 ;; Copyright (C) 2021 Shankar Rao
 
 ;; Author: Shankar Rao <shankar.rao@gmail.com>
-;; URL: http://example.com/sbr-misc.el
-;; Version: 0.1-pre
+;; URL: https://github.com/~shankar2k/math-at-point
+;; Version: 0.1
 ;; Package-Requires: ((emacs "27.1"))
 ;; Keywords: calc, matching
 
@@ -108,10 +108,11 @@ this function returns the string:
 
 \" 6.23+0000000000000 + 6.4*00000000000000000000 /2000\"."
   (cl-loop for (beg . end) in (map--balanced-paren-positions str)
-           ;; the indices beg and end of a pair of balanced parens are
-           ;; actually one character to the right of each paren. Thus, to get
-           ;; the start and end indices of the contents of the parens, we have
-           ;; to subtract 2 from end
+           ;; the indices beg and end of a pair of balanced parens returned by
+           ;; map--balanced-paren-positions are actually one character to the
+           ;; right of each paren. Thus, to get the start and end indices of
+           ;; the contents of the parens, we can use beg as is, and we have to
+           ;; subtract 2 from end.
            do (when (string-match-p map-whole-string-math-regexp
                                     (substring str beg (- end 2)))
                   (setf (substring str (1- beg) (1- end))
@@ -162,7 +163,7 @@ it."
   "Evaluate the math expression at point with `calc-eval'.
 
 A math expression consists of decimal numbers, the operations +,
--, *, /, and ^, parentheses, and can be interspersed with
+-, *, /, ^, and parentheses, and can be interspersed with
 whitespace. The whole expression must be fully contained in the
 current line. 
 
