@@ -1,4 +1,4 @@
-* math-at-point
+* Math at Point
 ** Summary
 
 This package provides the command ~math-at-point~ for evaluating an arithmetic
@@ -19,5 +19,53 @@ To start using it, place it somewhere in your Emacs load-path and add the line
 (require 'math-at-point)
 #+end_src
 
-in your ~.emacs.d/init.el~ file. Then run <kbd>M-x math-at-point</kbd> to run
-it. It is useful to create a global keybinding for ~math-at-point~ function. I recommend <kbd>C-z =</kbd>
+in your ~.emacs.d/init.el~ file. Then run ~M-x math-at-point~ to run it. It is
+useful to create a global keybinding for ~math-at-point~ function. I recommend
+~C-z =~ (assuming that you have first unbound ~C-z~ from ~suspend-emacs~).
+
+#+begin_src emacs-lisp
+(global-unset-key (kbd "C-z"))
+(global-set-key (kbd "C-z =") 'math-at-point)
+#+end_src
+
+If you use ~use-package~, you can configure this as follows:
+
+#+begin_src emacs-lisp
+(setq map-load-path "<path to math-at-point dir>")
+(unbind-key "C-z")
+(use-package math-at-point
+  :load-path map-load-path
+  :ensure nil
+  :bind ("C-z =" . math-at-point))
+#+end_src
+
+
+** Usage
+
+To use this command, simply invoke ~math-at-point~ when the point is inside of a
+math expression.
+
+A math expression consists of decimal numbers, the operations =+=, =-=, =*=, =/=, =^=,
+parentheses, and can be interspersed with whitespace. The whole expression
+must be fully contained in the current line.
+
+The result is computed using ~calc-eval~ and then displayed in the minibuffer
+and copied into the kill ring (so that it can be pasted with ~yank~). If the
+point is not within a math expression, then instead run ~quick-calc~.
+
+If the command invoked with the optional prefix argument (~C-u math-at-point~),
+then insert the evaluation result after the expression, prefixed by ~"="~. If
+there was already a previous result, then replace it.
+
+There is also the command ~math-at-point-simple~ that can evaluate a /simple/ math
+expression at point. A simple math expression is similar to a math expression,
+but does not allow parentheses (and thus can be matched using a regular
+expression alone). Note that every simple math expression is a math
+expression, and thus the functionality of ~math-at-point~ is a superset of
+~math-at-point-simple~
+
+** Requirements
+
+~math-at-point~ requires Emacs 27 or later because I use ~rx-define~ to define the
+regular expressions used to match a simple math expression.
+
