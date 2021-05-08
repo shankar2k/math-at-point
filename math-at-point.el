@@ -280,7 +280,7 @@ of (org-inside-LaTeX-fragment-p)."
            (lpos   (max (line-beginning-position)
                         (+ (cdr params) (length ldelim))))
            (rdelim (map--latex-rdelim ldelim))
-           (eq-rx  (map--latex-eq-regexp rdelim)
+           (eq-rx  (map--latex-eq-regexp rdelim))
            (rpos   (min (line-end-position)
                         (progn (goto-char lpos)
                                (search-forward rdelim nil t)))))
@@ -291,7 +291,7 @@ of (org-inside-LaTeX-fragment-p)."
                  return (let* ((calc-language 'latex))
                           (map--display-result (match-string-no-properties 1)
                                                insert p 1))
-                 finally do (goto-char p) (quick-calc insert)))))))
+                 finally do (goto-char p) (quick-calc insert))))))
 
 ;;;; Footer
 
