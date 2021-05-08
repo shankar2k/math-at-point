@@ -40,14 +40,13 @@
 
 (require 'cl-lib)
 
-;;;; Variables
 
+;;;; Variables
 
 (rx-define map-unsigned-number
   (or (and (one-or-more digit)
            (optional (and "." (zero-or-more digit))))
       (and "." (one-or-more digit))))
-
 
 (defvar map-simple-math-regexp
   (rx (and (optional (in "-" "+"))       ; optional sign in front of expression
@@ -60,7 +59,6 @@
 involving decimal numbers, the operations +,-,*, /, and ^, and an
 arbitrary amount of whitespace, all on one line.")
 
-
 (defvar map-whole-string-math-regexp
   (concat (rx line-start (zero-or-more blank))
           map-simple-math-regexp
@@ -71,14 +69,26 @@ The simple algebraic expression must not contain parens, but can
 have an arbitrary amount of whitespace at the beginning and end.
 Used by ``map--zero-out-balanced-parens''.")
 
-
 (defvar map-number-regexp
   (rx (and (optional "-") map-unsigned-number))
   "Regular expression for a number.")
 
+(defvar map-latex-begin-regexp
+  (rx "\\" "begin"
+      (group "{"
+             (minimal-match (zero-or-more not-newline))
+             "}" ))
+  "Regular expression for a LaTeX \begin{} delimiter.")
+
+(defvar map-insert-regexp
+  (rx (group (zero-or-more blank)
+                       "="
+                       (zero-or-more blank))
+      (optional (regexp map-number-regexp)))
+  "Regexp to match equal sign after expression where result will be inserted.")
+
 
 ;;;; Functions
-
 
 (defun map--balanced-paren-positions (str)
   "Return a list of positions of all balanced parens in STR.
@@ -96,9 +106,12 @@ position will occur before B's position in the list."
         (push (cons (match-beginning 0) end) parens)))
     parens))
 
-
 (defun map--zero-out-balanced-parens (str)
   "Replace all math expressions delimited by parens in STR with \"0\"s.
+
+This function is used to convert into a math expression with
+balanced parens into a simple math expression without balanced
+parens that can be matched with a regular expression.
 
 For example, for the string:
 
@@ -119,8 +132,32 @@ this function returns the string:
                         (make-string (- end beg) ?0)))
            finally return str))
 
-;;;; Commands
+(defun map--latex-eq-regexp (rdelim)
+  (rx (group (minimal-match (zero-or-more (not "="))))
+      (or "=" line-end (literal rdelim))))
 
+(defun map--latex-rdelim (ldelim)
+  (cond ((string-match map-latex-begin-regexp ldelim)
+         (concat "\\end" (substring ldelim (match-beginning 1) (match-end 1))))
+        ((string-equal "\\(" ldelim) "\\)")
+        ((string-equal "\\\[" ldelim) "\\\]")
+        ((string-equal "$$" ldelim) "$$")
+        (t             'error)))
+
+(defun map--display-result (result m-string insert p &optional subexp)
+  (if insert
+      (progn
+        (unless (or (null subexp) (zerop subexp))
+          (goto-char (match-end subexp)))
+        (if (looking-at map-insert-regexp)
+            (replace-match (concat "\\1" result))
+          (insert "=" result)))
+    (goto-char p))
+  (kill-new result)
+  (message "Result %s => %s" m-string result))
+
+            
+;;;; Commands
 
 ;;;###autoload
 (defun math-at-point-simple (&optional insert)
@@ -147,16 +184,10 @@ it."
                                       (line-end-position) t)
              when (<= (match-beginning 0) p (match-end 0))
              return (let* ((m-string (match-string 0))
+                           (calc-language 'flat)
                            (result (calc-eval m-string)))
-                      (if insert
-                        (if (looking-at (concat "=" map-number-regexp))
-                            (replace-match (concat "=" result))
-                          (insert "=" result))
-                        (goto-char p))
-                      (kill-new result)
-                      (message "Result %s => %s" m-string result))
+                      (map--display-result result m-string insert p))
              finally do (goto-char p) (quick-calc insert))))
-
 
 ;;;###autoload
 (defun math-at-point (&optional insert)
@@ -185,16 +216,36 @@ there was already a previous result, then replace it."
              when (<= (match-beginning 0) rel-p (match-end 0))
              return (let* ((m-end (match-end 0))
                            (m-string (substring this-line (match-beginning 0) m-end))
+                           (calc-language 'flat)
                            (result (save-match-data (calc-eval m-string))))
                       (when insert
-                        (goto-char (+ l-beg m-end))
-                        (if (looking-at (concat "=" map-number-regexp))
-                            (replace-match (concat "=" result))
-                          (insert "=" result)))
-                      (kill-new result)
-                      (message "Result %s => %s" m-string result))
+                        (goto-char (+ l-beg m-end)))
+                      (map--display-result result m-string insert (point)))
              finally do (quick-calc insert))))
 
+;;;###autoload
+(defun math-at-point-latex (&optional insert params)
+  (interactive "P")
+  (unless params
+    (setq params (org-inside-LaTeX-fragment-p)))
+  (when params
+    (let* ((p      (point))
+           (bol    (line-beginning-position))
+           (eol    (line-end-position))             
+           (ldelim (car params))
+           (lpos   (max bol (+ (cdr params) (length ldelim))))
+           (rdelim (map--latex-rdelim ldelim))
+           (rpos   (min eol (progn (goto-char lpos) (search-forward rdelim nil t))))
+           (eq-rx  (map--latex-eq-regexp rdelim)))
+      (when (< p rpos)     
+        (goto-char lpos)
+        (cl-loop while (re-search-forward eq-rx rpos t)
+                 when (<= (match-beginning 1) p (match-end 1))
+                 return (let* ((m-string (match-string-no-properties 1))
+                               (calc-language 'latex)
+                               (result (save-match-data (calc-eval m-string))))
+                          (map--display-result result m-string insert p 1))
+                 finally do (goto-char p) (quick-calc insert))))))
 
 ;;;; Footer
 
