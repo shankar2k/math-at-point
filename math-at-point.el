@@ -39,6 +39,7 @@
 ;;;; Requirements
 
 (require 'cl-lib)
+(require 'org)
 
 
 ;;;; Variables
@@ -71,7 +72,7 @@ Used by ``map--zero-out-balanced-parens''.")
 
 (defvar map-number-regexp
   (rx (and (optional "-") map-unsigned-number))
-  "Regular expression for a number.")
+  "Regular expression for a decimal number.")
 
 (defvar map-latex-begin-regexp
   (rx "\\" "begin"
@@ -133,10 +134,15 @@ this function returns the string:
            finally return str))
 
 (defun map--latex-eq-regexp (rdelim)
+  "Regular expression used to split LaTeX expression and its termination.
+
+The termination is either an equal-sign, an end-of-line, of the
+right delimiter RDELIM."
   (rx (group (minimal-match (zero-or-more (not "="))))
       (or "=" line-end (literal rdelim))))
 
 (defun map--latex-rdelim (ldelim)
+  "Return the LaTeX fragment right delimiter that pairs with LDELIM."
   (cond ((string-match map-latex-begin-regexp ldelim)
          (concat "\\end" (substring ldelim (match-beginning 1) (match-end 1))))
         ((string-equal "\\(" ldelim) "\\)")
@@ -144,17 +150,29 @@ this function returns the string:
         ((string-equal "$$" ldelim) "$$")
         (t             'error)))
 
-(defun map--display-result (result m-string insert p &optional subexp)
-  (if insert
-      (progn
-        (unless (or (null subexp) (zerop subexp))
-          (goto-char (match-end subexp)))
-        (if (looking-at map-insert-regexp)
-            (replace-match (concat "\\1" result))
-          (insert "=" result)))
-    (goto-char p))
-  (kill-new result)
-  (message "Result %s => %s" m-string result))
+(defun map--display-result (m-string insert p &optional subexp)
+  "Evaluate M-STRING using ``calc-eval'' and display result in  minibuffer.
+
+The result is also copied into the kill ring so that it can be
+pasted with ``yank''.
+
+If INSERT is true, then insert the evaluation result as position
+P in the buffer, prefixed by \"=\". If there was already a
+previous result, then replace it. If optional SUBEXP is provided
+and nonzero, jump to the end of the subexpression of depth SUBEXP
+before inserting the result.
+"
+  (let ((result (save-match-data (calc-eval m-string))))
+    (if insert
+        (progn
+          (unless (or (null subexp) (zerop subexp))
+            (goto-char (match-end subexp)))
+          (if (looking-at map-insert-regexp)
+              (replace-match (concat "\\1" result))
+            (insert "=" result)))
+      (goto-char p))
+    (kill-new result)
+    (message "Result %s => %s" m-string result)))
 
             
 ;;;; Commands
@@ -183,10 +201,8 @@ it."
     (cl-loop while (re-search-forward map-simple-math-regexp
                                       (line-end-position) t)
              when (<= (match-beginning 0) p (match-end 0))
-             return (let* ((m-string (match-string 0))
-                           (calc-language 'flat)
-                           (result (calc-eval m-string)))
-                      (map--display-result result m-string insert p))
+             return (let* ((calc-language 'flat))
+                      (map--display-result (match-string 0) insert p))
              finally do (goto-char p) (quick-calc insert))))
 
 ;;;###autoload
@@ -196,7 +212,8 @@ it."
 A math expression consists of decimal numbers, the operations +,
 -, *, /, ^, and parentheses, and can be interspersed with
 whitespace. The whole expression must be fully contained in the
-current line. 
+current line. If the point is inside a LaTeX math fragment, then
+the math expression can also contain LaTeX syntax.
 
 The result is displayed in the minibuffer and copied into the
 kill ring (so that it can be pasted with ``yank''). If the point
@@ -206,45 +223,63 @@ If optional prefix argument INSERT is provided, then insert the
 evaluation result after the expression, prefixed by \"=\". If
 there was already a previous result, then replace it."
   (interactive "P")
-  (let* ((l-beg (line-beginning-position))
-         (rel-p (- (point) l-beg))
-         (this-line (thing-at-point 'line t))
-         (zero-line (map--zero-out-balanced-parens this-line)))
-    (cl-loop for pos = 0 then (match-end 0)
-             while (and (string-match map-simple-math-regexp zero-line pos)
+  (let ((latex-params (org-inside-LaTeX-fragment-p)))
+    (if latex-params
+        (math-at-point-latex insert latex-params)
+      (let* ((l-beg (line-beginning-position))
+             (rel-p (- (point) l-beg))
+             (this-line (thing-at-point 'line t))
+             (zero-line (map--zero-out-balanced-parens this-line)))
+        (cl-loop for pos = 0 then (match-end 0)
+                 while (and (string-match map-simple-math-regexp zero-line pos)
                         (< pos (length this-line)))
-             when (<= (match-beginning 0) rel-p (match-end 0))
-             return (let* ((m-end (match-end 0))
-                           (m-string (substring this-line (match-beginning 0) m-end))
-                           (calc-language 'flat)
-                           (result (save-match-data (calc-eval m-string))))
-                      (when insert
-                        (goto-char (+ l-beg m-end)))
-                      (map--display-result result m-string insert (point)))
-             finally do (quick-calc insert))))
+                 when (<= (match-beginning 0) rel-p (match-end 0))
+                 return (let* ((m-end         (match-end 0))
+                               (calc-language 'flat))
+                          (when insert
+                            (goto-char (+ l-beg m-end)))
+                          (map--display-result (substring this-line
+                                                          (match-beginning 0)
+                                                          m-end)
+                                               insert (point)))
+             finally do (quick-calc insert))))))
 
 ;;;###autoload
 (defun math-at-point-latex (&optional insert params)
+    "Evaluate the LaTeX math expression at point with `calc-eval'.
+
+The result is displayed in the minibuffer and copied into the
+kill ring (so that it can be pasted with ``yank''). If the point
+is not within a LaTeX math expression, then instead run `quick-calc'.
+
+If optional prefix argument INSERT is provided, then insert the
+evaluation result after the expression, prefixed by \"=\". If
+there was already a previous result, then replace it.
+
+Optional argument PARAMS should contains a cons cell with the
+left delimiter of the LaTeX fragment and its position. If PARAMS
+isn't provided, it is set to the output
+of (org-inside-LaTeX-fragment-p)."
   (interactive "P")
   (unless params
     (setq params (org-inside-LaTeX-fragment-p)))
   (when params
     (let* ((p      (point))
-           (bol    (line-beginning-position))
-           (eol    (line-end-position))             
            (ldelim (car params))
-           (lpos   (max bol (+ (cdr params) (length ldelim))))
+           (lpos   (max (line-beginning-position)
+                        (+ (cdr params) (length ldelim))))
            (rdelim (map--latex-rdelim ldelim))
-           (rpos   (min eol (progn (goto-char lpos) (search-forward rdelim nil t))))
-           (eq-rx  (map--latex-eq-regexp rdelim)))
+           (rpos   (min (line-end-position)
+                        (progn (goto-char lpos)
+                               (search-forward rdelim nil t)))))
       (when (< p rpos)     
         (goto-char lpos)
-        (cl-loop while (re-search-forward eq-rx rpos t)
+        (cl-loop while (re-search-forward (map--latex-eq-regexp rdelim)
+                                          rpos t)
                  when (<= (match-beginning 1) p (match-end 1))
-                 return (let* ((m-string (match-string-no-properties 1))
-                               (calc-language 'latex)
-                               (result (save-match-data (calc-eval m-string))))
-                          (map--display-result result m-string insert p 1))
+                 return (let* ((calc-language 'latex))
+                          (map--display-result (match-string-no-properties 1)
+                                               insert p 1))
                  finally do (goto-char p) (quick-calc insert))))))
 
 ;;;; Footer
