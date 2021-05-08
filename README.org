@@ -43,19 +43,22 @@ If you use ~use-package~, you can configure this as follows:
 ** Usage
 
 To use this command, simply invoke ~math-at-point~ when the point is inside of a
-math expression.
+math expression or a LaTeX math fragment.
 
 A math expression consists of decimal numbers, the operations =+=, =-=, =*=, =/=, =^=,
 parentheses, and can be interspersed with whitespace. The whole expression
-must be fully contained in the current line.
+must be fully contained in the current line. If the point is inside a LaTeX
+math fragment, then the math expression can also contain LaTeX syntax such as
+~\frac{2}{5}~ or ~\sqrt{4^3}~.
 
 The result is computed using ~calc-eval~ and then displayed in the minibuffer
 and copied into the kill ring (so that it can be pasted with ~yank~). If the
-point is not within a math expression, then instead run ~quick-calc~.
+point is not within a math expression or LaTeX math fragment, then instead
+~quick-calc~ is run.
 
 If the command invoked with the optional prefix argument (~C-u M-x math-at-point~),
-then insert the evaluation result after the expression, prefixed by "=". If
-there was already a previous result, then replace it.
+then the evaluation result is inserted after the expression, prefixed by "=". If
+there was already a previous result, it is replaced..
 
 There is also the command ~math-at-point-simple~ that can evaluate a /simple/ math
 expression at point. A simple math expression is similar to a math expression,
@@ -64,15 +67,16 @@ expression alone). Note that every simple math expression is a math
 expression, and thus the functionality of ~math-at-point~ is a superset of
 ~math-at-point-simple~
 
-** Example
+** Examples
 
+*** Math expression 
 Suppose that you have the following text in your buffer:
 
 #+begin_src
-The total force is 6.23+(3.789/(5-4)) + 6.4*(2 - (5+[3]) *736.83 ) /2000 newtons.
+The total force is 6.23+(3.789/(5-4)) + 6.4*(2 - (5+<3>) *736.83 ) /2000 newtons.
 #+end_src 
 
-Here, ~[3]~ denotes that the point is on the ~3~ inside the fourth set of balanced parens. 
+Here, ~<3>~ denotes that the point is on the ~3~ inside the fourth set of balanced parens. 
 If ~M-x math-at-point~ is invoked, then the following message will appear in the minibuffer:
 
 #+begin_src
@@ -83,6 +87,34 @@ If ~C-u M-x math-at-point~ is invoked, then the text is changed to:
 
 #+begin_src
 The total force is 6.23+(3.789/(5-4)) + 6.4*(2 - (5+[3]) *736.83 ) /2000=-8.837448 newtons.
+#+end_src 
+
+*** LaTeX math fragment
+Suppose that the following text is in your buffer:
+#+begin_src latex
+  Lets do some cool arithmetic! Let $$x = 3$$, \[y = 4\], and \(z = 5\). Then,
+
+  \[\begin{aligned} 
+  x^{\frac{2}{3}} = <3>^{\frac{2}{3}} = 
+  \end{aligned}\]
+#+end_src 
+
+Here, ~<3>~ denotes that the point is on the ~3~ after the first ~=~ sign in the
+~\begin{aligned}~ environment. If ~M-x math-at-point~ is invoked, then the
+following message will appear in the minibuffer:
+
+#+begin_src
+Result  3^{\frac{2}{3}}  => 2.08008382306
+#+end_src
+
+If ~C-u M-x math-at-point~ is invoked, then the text is changed to:
+
+#+begin_src latex
+Lets do some cool arithmetic! Let $$x = 3$$, \[y = 4\], and \(z = 5\). Then,
+
+\[\begin{aligned}
+x ^{\frac{2}{3}} = 3^{\frac{2}{3}} =2.08008382306
+\end{aligned}\]
 #+end_src 
 
 ** Requirements
