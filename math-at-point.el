@@ -4,9 +4,9 @@
 
 ;; Author: Shankar Rao <shankar.rao@gmail.com>
 ;; URL: https://github.com/~shankar2k/math-at-point
-;; Version: 0.1
+;; Version: 0.2
 ;; Package-Requires: ((emacs "27.1"))
-;; Keywords: calc, matching
+;; Keywords: calc, matching, latex
 
 ;; This file is not part of GNU Emacs.
 
@@ -34,13 +34,25 @@
 ;; You should have received a copy of the GNU General Public License
 ;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+;;; History:
+
+;; Version 0.2 (2021-05-08):
+
+;; - Added function `math-at-point-latex' for calculating LaTeX expressions at point
+;; - Autodetect LaTeX expressions using org-inside-LaTeX-fragment-p in ``math-at-point''
+;; - Allow whitespace before or after "=" sign when insert is enabled
+;; - Allow insert when there is "=" sign without a result after it
+
+;; Version 0.1 (2021-05-06):
+
+;; - Initial version
+
 ;;; Code:
 
 ;;;; Requirements
 
 (require 'cl-lib)
 (require 'org)
-
 
 ;;;; Variables
 
@@ -136,7 +148,7 @@ this function returns the string:
 (defun map--latex-eq-regexp (rdelim)
   "Regular expression used to split LaTeX expression and its termination.
 
-The termination is either an equal-sign, an end-of-line, of the
+The termination is either an equal-sign, an end of line, of the
 right delimiter RDELIM."
   (rx (group (minimal-match (zero-or-more (not "="))))
       (or "=" line-end (literal rdelim))))
@@ -160,8 +172,7 @@ If INSERT is true, then insert the evaluation result as position
 P in the buffer, prefixed by \"=\". If there was already a
 previous result, then replace it. If optional SUBEXP is provided
 and nonzero, jump to the end of the subexpression of depth SUBEXP
-before inserting the result.
-"
+before inserting the result."
   (let ((result (save-match-data (calc-eval m-string))))
     (if insert
         (progn
@@ -184,12 +195,12 @@ before inserting the result.
 A simple math expression consists of decimal numbers, and the
 operations +, -, *, /, and ^, and can be interspersed with
 whitespace. A simple math expression cannot contain parens. The
-whole expression must on the current line. 
+whole expression must on the current line.
 
 The result is displayed in the minibuffer and copied into the
 kill ring so that it can be pasted with ``yank''. If the point is
 not inside a simple math expression, then instead run
-``quick-calc''. 
+``quick-calc''.
 
 If optional prefix argument INSERT is provided,
 then insert the evaluation result after the expression, prefixed
@@ -232,15 +243,15 @@ there was already a previous result, then replace it."
              (zero-line (map--zero-out-balanced-parens this-line)))
         (cl-loop for pos = 0 then (match-end 0)
                  while (and (string-match map-simple-math-regexp zero-line pos)
-                        (< pos (length this-line)))
+                            (< pos (length this-line)))
                  when (<= (match-beginning 0) rel-p (match-end 0))
-                 return (let* ((m-end         (match-end 0))
+                 return (let* ((m-beg         (match-beginning 0))
+                               (m-end         (match-end 0))
                                (calc-language 'flat))
                           (when insert
                             (goto-char (+ l-beg m-end)))
                           (map--display-result (substring this-line
-                                                          (match-beginning 0)
-                                                          m-end)
+                                                          m-beg m-end)
                                                insert (point)))
              finally do (quick-calc insert))))))
 
@@ -269,18 +280,18 @@ of (org-inside-LaTeX-fragment-p)."
            (lpos   (max (line-beginning-position)
                         (+ (cdr params) (length ldelim))))
            (rdelim (map--latex-rdelim ldelim))
+           (eq-rx  (map--latex-eq-regexp rdelim)
            (rpos   (min (line-end-position)
                         (progn (goto-char lpos)
                                (search-forward rdelim nil t)))))
-      (when (< p rpos)     
+      (when (< p rpos)
         (goto-char lpos)
-        (cl-loop while (re-search-forward (map--latex-eq-regexp rdelim)
-                                          rpos t)
+        (cl-loop while (re-search-forward eq-rx rpos t)
                  when (<= (match-beginning 1) p (match-end 1))
                  return (let* ((calc-language 'latex))
                           (map--display-result (match-string-no-properties 1)
                                                insert p 1))
-                 finally do (goto-char p) (quick-calc insert))))))
+                 finally do (goto-char p) (quick-calc insert)))))))
 
 ;;;; Footer
 
