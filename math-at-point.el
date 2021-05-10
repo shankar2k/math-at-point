@@ -38,8 +38,10 @@
 
 ;; Version 0.2 (2021-05-08):
 
-;; - Added function `math-at-point-latex' for calculating LaTeX expressions at point
-;; - Autodetect LaTeX expressions using org-inside-LaTeX-fragment-p in ``math-at-point''
+;; - Added function `math-at-point-latex' for calculating LaTeX expressions at
+;;   point
+;; - Autodetect LaTeX expressions using org-inside-LaTeX-fragment-p in
+;;   ``math-at-point''
 ;; - Allow whitespace before or after "=" sign when insert is enabled
 ;; - Allow insert when there is "=" sign without a result after it
 
@@ -178,7 +180,7 @@ previous result, then replace it. If SUBEXP is nonzero, jump to
 the end of the subexpression of depth SUBEXP before inserting the
 result."
   (let* ((calc-language lang)
-	 (result (save-match-data (calc-eval m-string))))
+     (result (save-match-data (calc-eval m-string))))
     (if insert
         (progn
           (unless (or (null subexp) (zerop subexp))
@@ -190,7 +192,7 @@ result."
     (kill-new result)
     (message "Result %s => %s" m-string result)))
 
-            
+
 ;;;; Commands
 
 ;;;###autoload
@@ -290,8 +292,8 @@ of (org-inside-LaTeX-fragment-p)."
       (when (<= p rpos)
         (goto-char lpos)
         (cl-loop while (and (re-search-forward eq-rx rpos t)
-			    (not (string-empty-p (match-string 1))))
-		 when (<= (match-beginning 1) p (match-end 1))
+                            (not (string-empty-p (match-string 1))))
+                 when (<= (match-beginning 1) p (match-end 1))
                  return (map--display-result (match-string-no-properties 1)
                                              'latex insert p 1)
                  finally do (goto-char p) (quick-calc insert))))))
