@@ -1,4 +1,4 @@
-;;; math-at-point.el --- Compute arithmetic at point using quick-calc  -*- lexical-binding: t; -*-
+;;; math-at-point.el --- Compute math at point using calc-eval  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2021 Shankar Rao
 
@@ -52,6 +52,7 @@
 ;;;; Requirements
 
 (require 'cl-lib)
+(require 'calc)
 (require 'org)
 
 ;;;; Variables
@@ -162,18 +163,22 @@ right delimiter RDELIM."
         ((string-equal "$$" ldelim) "$$")
         (t             'error)))
 
-(defun map--display-result (m-string insert p &optional subexp)
+(defun map--display-result (m-string lang insert p subexp)
   "Evaluate M-STRING using ``calc-eval'' and display result in  minibuffer.
 
 The result is also copied into the kill ring so that it can be
 pasted with ``yank''.
 
+LANG is the format that ``calc-eval'' expects M-STRING to be
+in. Currently only 'flat and 'latex are supported.
+
 If INSERT is true, then insert the evaluation result as position
 P in the buffer, prefixed by \"=\". If there was already a
-previous result, then replace it. If optional SUBEXP is provided
-and nonzero, jump to the end of the subexpression of depth SUBEXP
-before inserting the result."
-  (let ((result (save-match-data (calc-eval m-string))))
+previous result, then replace it. If SUBEXP is nonzero, jump to
+the end of the subexpression of depth SUBEXP before inserting the
+result."
+  (let* ((calc-language lang)
+	 (result (save-match-data (calc-eval m-string))))
     (if insert
         (progn
           (unless (or (null subexp) (zerop subexp))
@@ -212,8 +217,7 @@ it."
     (cl-loop while (re-search-forward map-simple-math-regexp
                                       (line-end-position) t)
              when (<= (match-beginning 0) p (match-end 0))
-             return (let* ((calc-language 'flat))
-                      (map--display-result (match-string 0) insert p))
+             return (map--display-result (match-string 0) 'flat insert p 0)
              finally do (goto-char p) (quick-calc insert))))
 
 ;;;###autoload
@@ -245,14 +249,13 @@ there was already a previous result, then replace it."
                  while (and (string-match map-simple-math-regexp zero-line pos)
                             (< pos (length this-line)))
                  when (<= (match-beginning 0) rel-p (match-end 0))
-                 return (let* ((m-beg         (match-beginning 0))
-                               (m-end         (match-end 0))
-                               (calc-language 'flat))
+                 return (let* ((m-beg (match-beginning 0))
+                               (m-end (match-end 0)))
                           (when insert
                             (goto-char (+ l-beg m-end)))
                           (map--display-result (substring this-line
                                                           m-beg m-end)
-                                               insert (point)))
+                                               'flat insert (point) 0))
              finally do (quick-calc insert))))))
 
 ;;;###autoload
@@ -284,13 +287,13 @@ of (org-inside-LaTeX-fragment-p)."
            (rpos   (min (line-end-position)
                         (progn (goto-char lpos)
                                (search-forward rdelim nil t)))))
-      (when (< p rpos)
+      (when (<= p rpos)
         (goto-char lpos)
-        (cl-loop while (re-search-forward eq-rx rpos t)
-                 when (<= (match-beginning 1) p (match-end 1))
-                 return (let* ((calc-language 'latex))
-                          (map--display-result (match-string-no-properties 1)
-                                               insert p 1))
+        (cl-loop while (and (re-search-forward eq-rx rpos t)
+			    (not (string-empty-p (match-string 1))))
+		 when (<= (match-beginning 1) p (match-end 1))
+                 return (map--display-result (match-string-no-properties 1)
+                                             'latex insert p 1)
                  finally do (goto-char p) (quick-calc insert))))))
 
 ;;;; Footer
