@@ -163,6 +163,7 @@ right delimiter RDELIM."
         ((string-equal "\\(" ldelim) "\\)")
         ((string-equal "\\\[" ldelim) "\\\]")
         ((string-equal "$$" ldelim) "$$")
+        ((string-equal "$" ldelim) "$")
         (t             'error)))
 
 (defun map--display-result (m-string lang insert p subexp)
@@ -243,22 +244,41 @@ there was already a previous result, then replace it."
   (let ((latex-params (org-inside-LaTeX-fragment-p)))
     (if latex-params
         (math-at-point-latex insert latex-params)
-      (let* ((l-beg (line-beginning-position))
-             (rel-p (- (point) l-beg))
-             (this-line (thing-at-point 'line t))
-             (zero-line (map--zero-out-balanced-parens this-line)))
-        (cl-loop for pos = 0 then (match-end 0)
-                 while (and (string-match map-simple-math-regexp zero-line pos)
-                            (< pos (length this-line)))
-                 when (<= (match-beginning 0) rel-p (match-end 0))
-                 return (let* ((m-beg (match-beginning 0))
-                               (m-end (match-end 0)))
-                          (when insert
-                            (goto-char (+ l-beg m-end)))
-                          (map--display-result (substring this-line
-                                                          m-beg m-end)
-                                               'flat insert (point) 0))
-             finally do (quick-calc insert))))))
+      (math-at-point-expression insert))))
+
+;;;###autoload
+(defun math-at-point-expression (&optional insert)
+  "Evaluate the math expression at point with `calc-eval'.
+
+A math expression consists of decimal numbers, the operations +,
+-, *, /, ^, and parentheses, and can be interspersed with
+whitespace. The whole expression must be fully contained in the
+current line.
+
+The result is displayed in the minibuffer and copied into the
+kill ring (so that it can be pasted with ``yank''). If the point
+is not within a math expression, then instead run `quick-calc'.
+
+If optional prefix argument INSERT is provided, then insert the
+evaluation result after the expression, prefixed by \"=\". If
+there was already a previous result, then replace it."
+  (interactive "P")
+  (let* ((l-beg (line-beginning-position))
+         (rel-p (- (point) l-beg))
+         (this-line (thing-at-point 'line t))
+         (zero-line (map--zero-out-balanced-parens this-line)))
+    (cl-loop for pos = 0 then (match-end 0)
+             while (and (string-match map-simple-math-regexp zero-line pos)
+                        (< pos (length this-line)))
+             when (<= (match-beginning 0) rel-p (match-end 0))
+             return (let* ((m-beg (match-beginning 0))
+                           (m-end (match-end 0)))
+                      (when insert
+                        (goto-char (+ l-beg m-end)))
+                      (map--display-result (substring this-line m-beg m-end)
+                                           'flat insert (point) 0))
+             finally do (quick-calc insert))))
+
 
 ;;;###autoload
 (defun math-at-point-latex (&optional insert params)
