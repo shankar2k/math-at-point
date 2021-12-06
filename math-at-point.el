@@ -116,7 +116,7 @@ position will occur before B's position in the list."
       (insert str)
       (goto-char (point-min))
       (while (and (search-forward "(" nil t)
-                  (condition-case err
+                  (condition-case _err
                       (setq end (scan-sexps (1- (point)) 1))
                     (scan-error nil)))
         (push (cons (match-beginning 0) end) parens)))
