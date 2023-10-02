@@ -6,7 +6,7 @@
 ;; URL: https://github.com/~shankar2k/math-at-point
 ;; Version: 0.2
 ;; Package-Requires: ((emacs "27.1"))
-;; Keywords: calc, matching, latex
+;; Keywords: calc, convenience, matching, tex
 
 ;; This file is not part of GNU Emacs.
 
@@ -98,8 +98,8 @@ Used by ``map--zero-out-balanced-parens''.")
 
 (defvar map-insert-regexp
   (rx (group (zero-or-more blank)
-                       "="
-                       (zero-or-more blank))
+             "="
+             (zero-or-more blank))
       (optional (regexp map-number-regexp)))
   "Regexp to match equal sign after expression where result will be inserted.")
 
