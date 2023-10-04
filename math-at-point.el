@@ -60,25 +60,22 @@
 ;;;; Variables
 
 (rx-define map-unsigned-number
-  (or (and (one-or-more digit)
-           (optional (and "." (zero-or-more digit))))
-      (and "." (one-or-more digit))))
+  (or (and (1+ digit) (? (and "." (0+ digit))))
+      (and "." (1+ digit))))
 
+(rx-define map-number (and (? "-") map-unsigned-number))
+  
 (defvar map-simple-math-regexp
-  (rx (and (optional (in "-" "+"))       ; optional sign in front of expression
-           (zero-or-more (and map-unsigned-number
-                              (zero-or-more blank) ; some blanks
-                              (in "+" "-" "*" "/" "^") ; an arithmetic operation
-                              (zero-or-more blank))) ; some blanks
+  (rx (and (? (in "-+"))
+           (0+ (and map-unsigned-number (0+ blank) (in "-+*/^") (0+ blank)))
            map-unsigned-number))
    "Regular expression for a simple algebraic expression.
 involving decimal numbers, the operations +,-,*, /, and ^, and an
 arbitrary amount of whitespace, all on one line.")
 
 (defvar map-whole-string-math-regexp
-  (concat (rx line-start (zero-or-more blank))
-          map-simple-math-regexp
-          (rx (zero-or-more blank) line-end))
+  (rx line-start (0+ blank) (regexp map-simple-math-regexp) (0+ blank)
+      line-end)
   "Regular expression for a simple math expression matching a whole string.
 
 The simple algebraic expression must not contain parens, but can
@@ -86,21 +83,15 @@ have an arbitrary amount of whitespace at the beginning and end.
 Used by ``map--zero-out-balanced-parens''.")
 
 (defvar map-number-regexp
-  (rx (and (optional "-") map-unsigned-number))
+  (rx (and (? "-") map-unsigned-number))
   "Regular expression for a decimal number.")
 
 (defvar map-latex-begin-regexp
-  (rx "\\" "begin"
-      (group "{"
-             (minimal-match (zero-or-more not-newline))
-             "}" ))
+  (rx "\\" "begin" (group "{" (+? not-newline) "}" ))
   "Regular expression for a LaTeX \begin{} delimiter.")
 
 (defvar map-insert-regexp
-  (rx (group (zero-or-more blank)
-             "="
-             (zero-or-more blank))
-      (optional (regexp map-number-regexp)))
+  (rx (group (0+ blank) "=" (0+ blank)) map-number)
   "Regexp to match equal sign after expression where result will be inserted.")
 
 
@@ -153,7 +144,7 @@ this function returns the string:
 
 The termination is either an equal-sign, an end of line, of the
 right delimiter RDELIM."
-  (rx (group (minimal-match (zero-or-more (not "="))))
+  (rx (group (minimal-match (0+ (not "="))))
       (or "=" line-end (literal rdelim))))
 
 (defun map--latex-rdelim (ldelim)
