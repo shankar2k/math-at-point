@@ -63,11 +63,13 @@
   (or (and (1+ digit) (? (and "." (0+ digit))))
       (and "." (1+ digit))))
 
-(rx-define map-number (and (? "-") map-unsigned-number))
-  
+(rx-define map-signs (and (0+ (and (in "-+") (0+ blank))) (in "-+")))
+
+(rx-define map-number (and (? map-signs) map-unsigned-number))
+
 (defvar map-simple-math-regexp
-  (rx (and (? (in "-+"))
-           (0+ (and map-unsigned-number (0+ blank) (in "-+*/^") (0+ blank)))
+  (rx (and (? map-signs) (0+ (and map-unsigned-number (0+ blank)
+                                  (or map-signs "**" (in "*/^")) (0+ blank)))
            map-unsigned-number))
    "Regular expression for a simple algebraic expression.
 involving decimal numbers, the operations +,-,*, /, and ^, and an
