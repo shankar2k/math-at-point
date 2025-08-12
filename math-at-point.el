@@ -40,7 +40,7 @@
 
 ;; - Added function `math-at-point-latex' for calculating LaTeX expressions at
 ;;   point
-;; - Autodetect LaTeX expressions using org-inside-LaTeX-fragment-p in
+;; - Autodetect LaTeX expressions using org-inside-LaTeX-fragment-p-old in
 ;;   ``math-at-point''
 ;; - Allow whitespace before or after "=" sign when insert is enabled
 ;; - Allow insert when there is "=" sign without a result after it
@@ -90,14 +90,91 @@ Used by ``map--zero-out-balanced-parens''.")
 
 (defvar map-latex-begin-regexp
   (rx "\\" "begin" (group "{" (+? not-newline) "}" ))
-  "Regular expression for a LaTeX \begin{} delimiter.")
+  "Regular expression for a LaTeX \\begin{} delimiter.")
 
 (defvar map-insert-regexp
   (rx (group (0+ blank) "=" (0+ blank)) map-number)
   "Regexp to match equal sign after expression where result will be inserted.")
 
 
+
+;;;; LaTeX Environments and Fragments
+
+(defconst org-latex-regexps
+  '(("begin" "^[ \t]*\\(\\\\begin{\\([a-zA-Z0-9\\*]+\\)[^\000]+?\\\\end{\\2}\\)" 1 t)
+    ;; ("$" "\\([ \t(]\\|^\\)\\(\\(\\([$]\\)\\([^ \t\n,.$].*?\\(\n.*?\\)\\{0,5\\}[^ \t\n,.$]\\)\\4\\)\\)\\([ \t.,?;:'\")]\\|$\\)" 2 nil)
+    ;; \000 in the following regex is needed for org-inside-LaTeX-fragment-p
+    ("$1" "\\([^$]\\|^\\)\\(\\$[^ \t\r\n,;.$]\\$\\)\\(\\s.\\|\\s-\\|\\s(\\|\\s)\\|\\s\"\\|\000\\|'\\|$\\)" 2 nil)
+    ("$"  "\\([^$]\\|^\\)\\(\\(\\$\\([^ \t\n,;.$][^$\n\r]*?\\(\n[^$\n\r]*?\\)\\{0,2\\}[^ \t\n,.$]\\)\\$\\)\\)\\(\\s.\\|\\s-\\|\\s(\\|\\s)\\|\\s\"\\|\000\\|'\\|$\\)" 2 nil)
+    ("\\(" "\\\\([^\000]*?\\\\)" 0 nil)
+    ("\\[" "\\\\\\[[^\000]*?\\\\\\]" 0 nil)
+    ("$$" "\\$\\$[^\000]*?\\$\\$" 0 nil))
+  "Regular expressions for matching embedded LaTeX.")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ;;;; Functions
+
+;;;; LaTeX fragments
+;; This is org-inside-LaTeX-fragment-p function from org-mode 9.6.30 2024-05-10 
+;; The new one breaks math-at-point-latex
+
+
+(defun org-inside-LaTeX-fragment-p-old ()
+  "Test if point is inside a LaTeX fragment.
+I.e. after a \\begin, \\(, \\[, $, or $$, without the corresponding closing
+sequence appearing also before point.
+Even though the matchers for math are configurable, this function assumes
+that \\begin, \\(, \\[, and $$ are always used.  Only the single dollar
+delimiters are skipped when they have been removed by customization.
+The return value is nil, or a cons cell with the delimiter and the
+position of this delimiter.
+
+This function does a reasonably good job, but can locally be fooled by
+for example currency specifications.  For example it will assume being in
+inline math after \"$22.34\".  The LaTeX fragment formatter will only format
+fragments that are properly closed, but during editing, we have to live
+with the uncertainty caused by missing closing delimiters.  This function
+looks only before point, not after."
+  (catch 'exit
+    (let ((pos (point))
+	  (dodollar (member "$" (plist-get org-format-latex-options :matchers)))
+	  (lim (progn
+		 (re-search-backward (concat "^\\(" paragraph-start "\\)") nil
+				     'move)
+		 (point)))
+	  dd-on str (start 0) m re)
+      (goto-char pos)
+      (when dodollar
+	(setq str (concat (buffer-substring lim (point)) "\000 X$.")
+	      re (nth 1 (assoc "$" org-latex-regexps)))
+	(while (string-match re str start)
+	  (cond
+	   ((= (match-end 0) (length str))
+	    (throw 'exit (cons "$" (+ lim (match-beginning 0) 1))))
+	   ((= (match-end 0) (- (length str) 5))
+	    (throw 'exit nil))
+	   (t (setq start (match-end 0))))))
+      (when (setq m (re-search-backward "\\(\\\\begin{[^}]*}\\|\\\\(\\|\\\\\\[\\)\\|\\(\\\\end{[^}]*}\\|\\\\)\\|\\\\\\]\\)\\|\\(\\$\\$\\)" lim t))
+	(goto-char pos)
+	(and (match-beginning 1) (throw 'exit (cons (match-string 1) m)))
+	(and (match-beginning 2) (throw 'exit nil))
+	;; count $$
+	(while (re-search-backward "\\$\\$" lim t)
+	  (setq dd-on (not dd-on)))
+	(goto-char pos)
+	(when dd-on (cons "$$" m))))))
 
 (defun map--balanced-paren-positions (str)
   "Return a list of positions of all balanced parens in STR.
@@ -166,7 +243,7 @@ The result is also copied into the kill ring so that it can be
 pasted with ``yank''.
 
 LANG is the format that ``calc-eval'' expects M-STRING to be
-in. Currently only 'flat and 'latex are supported.
+in. Currently only \='flat and \='latex are supported.
 
 If INSERT is true, then insert the evaluation result as position
 P in the buffer, prefixed by \"=\". If there was already a
@@ -234,7 +311,7 @@ If optional prefix argument INSERT is provided, then insert the
 evaluation result after the expression, prefixed by \"=\". If
 there was already a previous result, then replace it."
   (interactive "P")
-  (let ((latex-params (org-inside-LaTeX-fragment-p)))
+  (let ((latex-params (org-inside-LaTeX-fragment-p-old)))
     (if latex-params
         (math-at-point-latex insert latex-params)
       (math-at-point-expression insert))))
@@ -288,10 +365,10 @@ there was already a previous result, then replace it.
 Optional argument PARAMS should contains a cons cell with the
 left delimiter of the LaTeX fragment and its position. If PARAMS
 isn't provided, it is set to the output
-of (org-inside-LaTeX-fragment-p)."
+of (org-inside-LaTeX-fragment-p-old)."
   (interactive "P")
   (unless params
-    (setq params (org-inside-LaTeX-fragment-p)))
+    (setq params (org-inside-LaTeX-fragment-p-old)))
   (when params
     (let* ((p      (point))
            (ldelim (car params))
